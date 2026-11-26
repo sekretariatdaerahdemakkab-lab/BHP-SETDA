@@ -1,0 +1,6 @@
+{
+  "name": "SIP-BHP SETDA DEMAK",
+  "description": "Sistem Informasi Persediaan Barang Habis Pakai (BHP) Sekretariat Daerah Kabupaten Demak dengan arsitektur multi-gudang, kartu persediaan dinamis, monitoring plafon anggaran, rekonsiliasi fungsional, dan cetak berita acara.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

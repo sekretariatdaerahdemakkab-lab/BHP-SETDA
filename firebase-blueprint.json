@@ -1,0 +1,257 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profil pengguna SIP-BHP SETDA DEMAK dengan autentikasi username + password, role RBAC, dan ikatan bagian.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-z0-9._\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "namaLengkap": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["Superadmin", "Pengurus Barang", "Admin Persediaan"] },
+        "bagianId": { "type": "string", "maxLength": 64 },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "username", "email", "namaLengkap", "role", "active", "updatedAt"]
+    },
+    "BootstrapMeta": {
+      "title": "BootstrapMeta",
+      "description": "Penanda aktivasi akun Superadmin awal aplikasi (dibuat sekali secara atomik).",
+      "type": "object",
+      "properties": {
+        "initialized": { "type": "boolean" },
+        "superadminUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["initialized", "superadminUid", "updatedAt"]
+    },
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Penanda hak akses administrator sistem.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "InstansiConfig": {
+      "title": "InstansiConfig",
+      "description": "Konfigurasi instansi, pejabat penandatangan, logo, dan kop surat.",
+      "type": "object",
+      "properties": {
+        "namaInstansi": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "subInstansi": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "alamat": { "type": "string", "maxLength": 300 },
+        "telepon": { "type": "string", "maxLength": 50 },
+        "fax": { "type": "string", "maxLength": 50 },
+        "website": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 120 },
+        "logoUrl": { "type": "string", "maxLength": 450000 },
+        "kopSuratUrl": { "type": "string", "maxLength": 450000 },
+        "namaPimpinan": { "type": "string", "maxLength": 120 },
+        "jabatanPimpinan": { "type": "string", "maxLength": 120 },
+        "nipPimpinan": { "type": "string", "maxLength": 40 },
+        "namaPengurus": { "type": "string", "maxLength": 120 },
+        "jabatanPengurus": { "type": "string", "maxLength": 120 },
+        "nipPengurus": { "type": "string", "maxLength": 40 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["namaInstansi", "subInstansi", "ownerId", "updatedAt"]
+    },
+    "Bagian": {
+      "title": "Bagian",
+      "description": "Unit kerja atau gudang bagian pada Sekretariat Daerah Kabupaten Demak.",
+      "type": "object",
+      "properties": {
+        "kode": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "nama": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "kepalaBagian": { "type": "string", "maxLength": 120 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["kode", "nama", "ownerId", "updatedAt"]
+    },
+    "Kategori": {
+      "title": "Kategori",
+      "description": "Master kategori barang dan kode rekening belanja standar.",
+      "type": "object",
+      "properties": {
+        "kodeRekening": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "nama": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["kodeRekening", "nama", "ownerId", "updatedAt"]
+    },
+    "Barang": {
+      "title": "Barang",
+      "description": "Master item barang habis pakai.",
+      "type": "object",
+      "properties": {
+        "kodeBarang": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "nama": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "satuan": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "hargaStandar": { "type": "number" },
+        "stokMinimum": { "type": "number" },
+        "kategoriId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["kodeBarang", "nama", "satuan", "hargaStandar", "kategoriId", "ownerId", "updatedAt"]
+    },
+    "PlafonAnggaran": {
+      "title": "PlafonAnggaran",
+      "description": "Pagu anggaran tahunan per Bagian, Kode Rekening, dan Kegiatan.",
+      "type": "object",
+      "properties": {
+        "tahun": { "type": "number" },
+        "bagianId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "kodeRekening": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "namaKegiatan": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "paguAnggaran": { "type": "number" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["tahun", "bagianId", "kodeRekening", "namaKegiatan", "paguAnggaran", "ownerId", "updatedAt"]
+    },
+    "RekonPeriode": {
+      "title": "RekonPeriode",
+      "description": "Status rekonsiliasi fungsional bendahara dan penguncian periode.",
+      "type": "object",
+      "properties": {
+        "tahun": { "type": "number" },
+        "bulan": { "type": "number" },
+        "bagianId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "nilaiFungsional": { "type": "number" },
+        "status": { "type": "string", "enum": ["Draft", "Dikirim", "Disetujui"] },
+        "catatan": { "type": "string", "maxLength": 500 },
+        "submittedBy": { "type": "string", "maxLength": 120 },
+        "submittedAt": { "type": "string", "maxLength": 64 },
+        "approvedBy": { "type": "string", "maxLength": 120 },
+        "approvedAt": { "type": "string", "maxLength": 64 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["tahun", "bulan", "bagianId", "nilaiFungsional", "status", "ownerId", "updatedAt"]
+    },
+    "TransaksiPersediaan": {
+      "title": "TransaksiPersediaan",
+      "description": "Transaksi barang masuk, barang keluar, opname, dan mutasi antar bagian.",
+      "type": "object",
+      "properties": {
+        "tahun": { "type": "number" },
+        "bulan": { "type": "number" },
+        "bagianId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "jenis": { "type": "string", "enum": ["SALDO_AWAL", "MASUK", "KELUAR", "OPNAME_MASUK", "OPNAME_KELUAR", "MUTASI_KELUAR", "MUTASI_MASUK"] },
+        "tanggal": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "noBukti": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "barangId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "qty": { "type": "number" },
+        "hargaSatuan": { "type": "number" },
+        "totalNilai": { "type": "number" },
+        "plafonId": { "type": "string", "maxLength": 64 },
+        "keterangan": { "type": "string", "maxLength": 300 },
+        "refMutasiId": { "type": "string", "maxLength": 64 },
+        "tujuanBagianId": { "type": "string", "maxLength": 64 },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["tahun", "bulan", "bagianId", "jenis", "tanggal", "noBukti", "barangId", "qty", "hargaSatuan", "totalNilai", "createdBy", "ownerId", "createdAt", "updatedAt"]
+    },
+    "KartuPersediaan": {
+      "title": "KartuPersediaan",
+      "description": "Kartu kendali kronologis persediaan barang per gudang bagian.",
+      "type": "object",
+      "properties": {
+        "transaksiId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "tahun": { "type": "number" },
+        "bagianId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "barangId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "tanggal": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "noBukti": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "jenis": { "type": "string", "enum": ["SALDO_AWAL", "MASUK", "KELUAR", "OPNAME_MASUK", "OPNAME_KELUAR", "MUTASI_KELUAR", "MUTASI_MASUK"] },
+        "keterangan": { "type": "string", "maxLength": 300 },
+        "qtyMasuk": { "type": "number" },
+        "qtyKeluar": { "type": "number" },
+        "sisaSaldo": { "type": "number" },
+        "hargaSatuan": { "type": "number" },
+        "nilaiMutasi": { "type": "number" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["transaksiId", "tahun", "bagianId", "barangId", "tanggal", "noBukti", "jenis", "qtyMasuk", "qtyKeluar", "sisaSaldo", "hargaSatuan", "nilaiMutasi", "ownerId", "createdAt", "updatedAt"]
+    },
+    "StokSaldo": {
+      "title": "StokSaldo",
+      "description": "Saldo stok terkini per pasangan gudang bagian dan barang.",
+      "type": "object",
+      "properties": {
+        "bagianId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "barangId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "qty": { "type": "number" },
+        "hargaTerakhir": { "type": "number" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["bagianId", "barangId", "qty", "hargaTerakhir", "ownerId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Dokumen profil pengguna aktif yang dibuat Superadmin dan terhubung dengan Firebase Auth."
+    },
+    "/meta/{docId}": {
+      "schema": { "$ref": "#/entities/BootstrapMeta" },
+      "description": "Metadata status aktivasi akun Superadmin awal aplikasi."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminMarker" },
+      "description": "Daftar UID administrator sistem."
+    },
+    "/instansi/{docId}": {
+      "schema": { "$ref": "#/entities/InstansiConfig" },
+      "description": "Pengaturan profil instansi Setda Kabupaten Demak."
+    },
+    "/bagian/{bagianId}": {
+      "schema": { "$ref": "#/entities/Bagian" },
+      "description": "Master bagian / gudang desentralisasi."
+    },
+    "/kategori/{kategoriId}": {
+      "schema": { "$ref": "#/entities/Kategori" },
+      "description": "Master kategori barang dan kode rekening."
+    },
+    "/barang/{barangId}": {
+      "schema": { "$ref": "#/entities/Barang" },
+      "description": "Master katalog barang habis pakai."
+    },
+    "/plafon_anggaran/{plafonId}": {
+      "schema": { "$ref": "#/entities/PlafonAnggaran" },
+      "description": "Plafon pagu anggaran tahunan per bagian dan kegiatan."
+    },
+    "/rekon_periode/{rekonId}": {
+      "schema": { "$ref": "#/entities/RekonPeriode" },
+      "description": "Rekonsiliasi fungsional bendahara dan status penguncian periode."
+    },
+    "/transaksi_persediaan/{transaksiId}": {
+      "schema": { "$ref": "#/entities/TransaksiPersediaan" },
+      "description": "Seluruh transaksi persediaan barang masuk, keluar, opname, dan mutasi."
+    },
+    "/kartu_persediaan/{kartuId}": {
+      "schema": { "$ref": "#/entities/KartuPersediaan" },
+      "description": "Kartu kendali kronologis saldo persediaan per barang per bagian."
+    },
+    "/stok_saldo/{saldoId}": {
+      "schema": { "$ref": "#/entities/StokSaldo" },
+      "description": "Ringkasan saldo stok terkini per bagian dan barang."
+    }
+  }
+}
