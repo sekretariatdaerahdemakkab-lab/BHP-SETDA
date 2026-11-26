@@ -136,8 +136,8 @@ export function LoginClient() {
                 SIP-BHP SETDA DEMAK
               </h1>
               <p className="mt-3 text-sm text-slate-300 leading-relaxed">
-                Sistem Informasi Persediaan Barang Habis Pakai terpadu dengan sinkronisasi Cloud
-                Firestore lintas-perangkat, multi-gudang per Bagian, Kartu Persediaan dinamis,
+                Sistem Informasi Persediaan Barang Habis Pakai terpadu dengan sinkronisasi 
+                lintas-perangkat, multi-gudang per Bagian, Kartu Persediaan dinamis,
                 monitoring Plafon Anggaran, dan Rekonsiliasi Fungsional Bendahara.
               </p>
             </div>
@@ -332,7 +332,7 @@ export function LoginClient() {
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Masuk ke Sistem</h2>
                 <p className="mt-1.5 text-sm text-slate-500">
-                  Masukkan username dan password yang telah didaftarkan oleh Superadmin.
+                  Masukkan username dan password Anda.
                 </p>
               </div>
 
@@ -363,7 +363,7 @@ export function LoginClient() {
                       autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                      placeholder="contoh: superadmin atau admin.umum"
+                      placeholder="contoh: superadmin atau bag_umum"
                       className="w-full h-11 pl-10 pr-3 text-sm font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
                     />
                   </div>
@@ -418,8 +418,7 @@ export function LoginClient() {
                 </div>
                 <p>
                   <strong>Pengelola BHP Bagian &amp; Setda:</strong> Akun (username dan password)
-                  dibuat dan dikelola langsung oleh <strong>Superadmin</strong> melalui menu{' '}
-                  <em>Manajemen User</em> tanpa memerlukan akun Google.
+                  dibuat dan dikelola langsung oleh <strong>Superadmin</strong>
                 </p>
               </div>
             </>
