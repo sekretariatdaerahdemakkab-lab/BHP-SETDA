@@ -61,6 +61,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     if (profile.role === 'Admin Persediaan' && profile.bagianId) {
       setSelectedBagianIdState(profile.bagianId);
+    } else {
+      setSelectedBagianIdState((prev) =>
+        prev !== 'ALL' && !bagData.some((b) => b.id === prev) ? 'ALL' : prev
+      );
     }
     setAuthError('');
     return profile;
@@ -85,6 +89,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     testFirestoreConnection();
+    let active = true;
+    getInstansi()
+      .then((instData) => {
+        if (active && instData) {
+          setInstansi(instData);
+        }
+      })
+      .catch(() => {
+        // Ignore silently when unauthenticated or offline before rules/connection ready
+      });
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
@@ -109,7 +123,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [loadWorkspaceData]);
 
   const setSelectedBagianId = useCallback(

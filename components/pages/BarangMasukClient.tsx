@@ -29,6 +29,8 @@ import {
   formatNumber,
   formatRupiah,
   getDefaultDateForYear,
+  parseExcelDateISO,
+  parseFlexibleNumber,
 } from '@/lib/format';
 import type { Barang, PlafonAnggaran, TransaksiPersediaan } from '@/lib/types';
 
@@ -189,8 +191,26 @@ export function BarangMasukClient() {
   const handleSaveBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser) return;
-    if (draftRows.some((d) => !d.tanggal || !d.noBukti.trim())) {
-      showToast('Tanggal dan Nomor BAST/Nota wajib diisi pada setiap baris.', 'error');
+    if (!activeFormBagian) {
+      showToast('Pilih Gudang Bagian terlebih dahulu.', 'error');
+      return;
+    }
+    if (
+      draftRows.some(
+        (d) =>
+          !d.tanggal ||
+          !d.noBukti.trim() ||
+          !d.barangId ||
+          !Number.isFinite(Number(d.qty)) ||
+          Number(d.qty) <= 0 ||
+          !Number.isFinite(Number(d.hargaSatuan)) ||
+          Number(d.hargaSatuan) < 0
+      )
+    ) {
+      showToast(
+        'Tanggal, Nomor BAST/Nota, Barang, Qty (> 0), dan Harga Satuan wajib valid pada setiap baris.',
+        'error'
+      );
       return;
     }
     setSaving(true);
@@ -233,6 +253,20 @@ export function BarangMasukClient() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editItem || !user || !firebaseUser) return;
+    if (!editTanggal || !editNoBukti.trim() || !editBarangId) {
+      showToast('Tanggal, Nomor Bukti, dan Barang wajib diisi.', 'error');
+      return;
+    }
+    const parsedQty = Number(editQty);
+    const parsedHarga = Number(editHarga);
+    if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+      showToast('Jumlah barang masuk harus berupa angka valid lebih dari 0.', 'error');
+      return;
+    }
+    if (!Number.isFinite(parsedHarga) || parsedHarga < 0) {
+      showToast('Harga satuan harus berupa angka valid >= 0.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await updateTransaksi(user, firebaseUser.uid, {
@@ -298,15 +332,16 @@ export function BarangMasukClient() {
     const defaultPlafon = plafonList.find((p) => p.bagianId === targetBagian)?.id || null;
 
     return rawRows.map((raw, idx) => {
-      const tgl = String(raw.tanggal ?? raw.Tanggal ?? getDefaultDateForYear(tahun))
-        .trim()
-        .slice(0, 10);
+      const tgl = parseExcelDateISO(
+        raw.tanggal ?? raw.Tanggal,
+        getDefaultDateForYear(tahun)
+      );
       const bukti = String(raw.no_bukti ?? raw.No_Bukti ?? '').trim();
       const itemKey = String(
         raw.kode_atau_nama_barang ?? raw.kode_barang ?? raw.nama_barang ?? ''
       ).trim();
-      const qty = Number(raw.qty ?? raw.Qty ?? 0);
-      const harga = Number(raw.harga_satuan ?? raw.Harga_Satuan ?? 0);
+      const qty = parseFlexibleNumber(raw.qty ?? raw.Qty ?? 0);
+      const harga = parseFlexibleNumber(raw.harga_satuan ?? raw.Harga_Satuan ?? 0);
       const ket = String(raw.keterangan ?? raw.Keterangan ?? '').trim();
 
       const matched = barangList.find(
@@ -316,7 +351,8 @@ export function BarangMasukClient() {
       );
 
       let error = '';
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl)) error = 'Tanggal harus YYYY-MM-DD';
+      if (!targetBagian) error = 'Gudang Bagian belum tersedia';
+      else if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl)) error = 'Tanggal harus YYYY-MM-DD';
       else if (!bukti) error = 'No Bukti kosong';
       else if (!matched) error = `Barang "${itemKey}" tidak ditemukan`;
       else if (!Number.isFinite(qty) || qty <= 0) error = 'Qty harus > 0';

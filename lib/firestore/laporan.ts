@@ -1,6 +1,6 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
-import { getYearOptions } from '@/lib/format';
+import { getYearOptions, roundQty } from '@/lib/format';
 import type {
   DashboardSummary,
   JenisTransaksi,
@@ -228,8 +228,11 @@ export async function getRekapPersediaan(
     const brg = barangMap.get(brgId);
     if (!bag || !brg) continue;
 
-    const saldoAkhir = acc.saldoAwal + acc.mutasiMasuk - acc.mutasiKeluar;
-    if (acc.saldoAwal === 0 && acc.mutasiMasuk === 0 && acc.mutasiKeluar === 0 && saldoAkhir === 0) {
+    const saldoAwal = roundQty(acc.saldoAwal);
+    const mutasiMasuk = roundQty(acc.mutasiMasuk);
+    const mutasiKeluar = roundQty(acc.mutasiKeluar);
+    const saldoAkhir = roundQty(saldoAwal + mutasiMasuk - mutasiKeluar);
+    if (saldoAwal === 0 && mutasiMasuk === 0 && mutasiKeluar === 0 && saldoAkhir === 0) {
       continue;
     }
 
@@ -239,23 +242,27 @@ export async function getRekapPersediaan(
       if (!hay.includes(q)) continue;
     }
 
-    const saldoAwalNilai =
-      acc.saldoAwal <= 0
+    const masukNilai = Math.round(acc.masukNilai);
+    const keluarNilai = Math.round(acc.keluarNilai);
+    const saldoAwalNilai = Math.round(
+      saldoAwal <= 0
         ? 0
         : acc.saldoAwalNilai > 0
         ? acc.saldoAwalNilai
-        : acc.saldoAwal * acc.latestHarga;
-    const rawAkhirNilai = saldoAwalNilai + acc.masukNilai - acc.keluarNilai;
-    const saldoAkhirNilai =
+        : saldoAwal * acc.latestHarga
+    );
+    const rawAkhirNilai = saldoAwalNilai + masukNilai - keluarNilai;
+    const saldoAkhirNilai = Math.round(
       saldoAkhir <= 0
         ? 0
         : rawAkhirNilai > 0
         ? rawAkhirNilai
-        : saldoAkhir * acc.latestHarga;
+        : saldoAkhir * acc.latestHarga
+    );
 
-    const hargaAwal = acc.saldoAwal > 0 ? Math.round(saldoAwalNilai / acc.saldoAwal) : 0;
-    const hargaMasuk = acc.mutasiMasuk > 0 ? Math.round(acc.masukNilai / acc.mutasiMasuk) : 0;
-    const hargaKeluar = acc.mutasiKeluar > 0 ? Math.round(acc.keluarNilai / acc.mutasiKeluar) : 0;
+    const hargaAwal = saldoAwal > 0 ? Math.round(saldoAwalNilai / saldoAwal) : 0;
+    const hargaMasuk = mutasiMasuk > 0 ? Math.round(masukNilai / mutasiMasuk) : 0;
+    const hargaKeluar = mutasiKeluar > 0 ? Math.round(keluarNilai / mutasiKeluar) : 0;
     const hargaAkhir = saldoAkhir > 0 ? Math.round(saldoAkhirNilai / saldoAkhir) : 0;
 
     rows.push({
@@ -268,15 +275,15 @@ export async function getRekapPersediaan(
       kodeRekening: kat?.kodeRekening || '-',
       bagianId: bag.id,
       bagianNama: bag.nama,
-      saldoAwal: acc.saldoAwal,
+      saldoAwal,
       hargaAwal,
       saldoAwalNilai,
-      mutasiMasuk: acc.mutasiMasuk,
+      mutasiMasuk,
       hargaMasuk,
-      masukNilai: acc.masukNilai,
-      mutasiKeluar: acc.mutasiKeluar,
+      masukNilai,
+      mutasiKeluar,
       hargaKeluar,
-      keluarNilai: acc.keluarNilai,
+      keluarNilai,
       saldoAkhir,
       hargaAkhir,
       saldoAkhirNilai,
@@ -323,8 +330,12 @@ export async function getDashboardSummary(
       : 0;
 
   const uniqueBarang = new Set(rekapRows.map((r) => r.barangId));
-  const totalStokUnit = rekapRows.reduce((acc, r) => acc + Math.max(0, r.saldoAkhir), 0);
-  const totalNilaiPersediaan = rekapRows.reduce((acc, r) => acc + r.totalNilai, 0);
+  const totalStokUnit = roundQty(
+    rekapRows.reduce((acc, r) => acc + Math.max(0, r.saldoAkhir), 0)
+  );
+  const totalNilaiPersediaan = Math.round(
+    rekapRows.reduce((acc, r) => acc + r.totalNilai, 0)
+  );
 
   const lowStockAlerts: LowStockAlert[] = rekapRows
     .filter((r) => r.stokMinimum > 0 && r.saldoAkhir <= r.stokMinimum)
@@ -352,8 +363,8 @@ export async function getDashboardSummary(
       bagianKode: b.kode,
       bagianNama: b.nama,
       totalItem: bagRows.length,
-      totalQty: bagRows.reduce((a, r) => a + r.saldoAkhir, 0),
-      totalNilai: bagRows.reduce((a, r) => a + r.totalNilai, 0),
+      totalQty: roundQty(bagRows.reduce((a, r) => a + r.saldoAkhir, 0)),
+      totalNilai: Math.round(bagRows.reduce((a, r) => a + r.totalNilai, 0)),
     };
   });
 

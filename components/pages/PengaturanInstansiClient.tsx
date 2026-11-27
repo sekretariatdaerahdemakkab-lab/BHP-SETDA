@@ -34,17 +34,33 @@ function compressImageDataUrl(file: File, maxWidth: number): Promise<string> {
           resolve(src);
           return;
         }
-        ctx.drawImage(img, 0, 0, w, h);
-        const pngOrWebp =
-          file.type === 'image/png'
-            ? canvas.toDataURL('image/png')
-            : canvas.toDataURL('image/jpeg', 0.85);
-        if (pngOrWebp.length <= 440_000) {
-          resolve(pngOrWebp);
+        if (file.type === 'image/svg+xml' && src.length <= 440_000) {
+          resolve(src);
           return;
         }
-        const jpg = canvas.toDataURL('image/jpeg', 0.72);
-        resolve(jpg);
+        ctx.drawImage(img, 0, 0, w, h);
+        const isTransparentType =
+          file.type === 'image/png' ||
+          file.type === 'image/webp' ||
+          file.type === 'image/svg+xml';
+        if (isTransparentType) {
+          const png = canvas.toDataURL('image/png');
+          if (png.length <= 440_000) {
+            resolve(png);
+            return;
+          }
+          const webp = canvas.toDataURL('image/webp', 0.85);
+          if (webp.length <= 440_000) {
+            resolve(webp);
+            return;
+          }
+        }
+        const jpg = canvas.toDataURL('image/jpeg', 0.82);
+        if (jpg.length <= 440_000) {
+          resolve(jpg);
+          return;
+        }
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
       };
       img.src = src;
     };
@@ -91,11 +107,11 @@ export function PengaturanInstansiClient() {
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3_000_000) {
-      showToast('Ukuran file gambar maksimal 3 MB.', 'error');
-      return;
-    }
     try {
+      if (file.size > 3_000_000) {
+        showToast('Ukuran file gambar maksimal 3 MB.', 'error');
+        return;
+      }
       const maxWidth = field === 'logoUrl' ? 420 : 1200;
       const compressed = await compressImageDataUrl(file, maxWidth);
       if (compressed.length > 440_000) {
@@ -108,6 +124,8 @@ export function PengaturanInstansiClient() {
       setForm((prev) => ({ ...prev, [field]: compressed }));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Gagal memproses gambar.', 'error');
+    } finally {
+      e.target.value = '';
     }
   };
 

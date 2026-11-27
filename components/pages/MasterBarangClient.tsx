@@ -23,7 +23,7 @@ import {
   listKategori,
   saveBarang,
 } from '@/lib/firestore/master';
-import { formatRupiah } from '@/lib/format';
+import { formatRupiah, parseFlexibleNumber } from '@/lib/format';
 import type { Barang, Kategori } from '@/lib/types';
 
 export function MasterBarangClient() {
@@ -55,13 +55,15 @@ export function MasterBarangClient() {
       const [brgData, kats] = await Promise.all([listBarang(search), listKategori()]);
       setRows(brgData);
       setKategoriList(kats);
-      if (kats.length > 0 && !kategoriId) setKategoriId(kats[0].id);
+      if (kats.length > 0) {
+        setKategoriId((prev) => prev || kats[0].id);
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Gagal memuat katalog barang.', 'error');
     } finally {
       setLoading(false);
     }
-  }, [user, search, kategoriId, showToast]);
+  }, [user, search, showToast]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -95,6 +97,16 @@ export function MasterBarangClient() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser) return;
+    const parsedHarga = Number(hargaStandar);
+    const parsedStokMin = Number(stokMinimum);
+    if (!Number.isFinite(parsedHarga) || parsedHarga < 0) {
+      showToast('Harga standar harus berupa angka valid >= 0.', 'error');
+      return;
+    }
+    if (!Number.isFinite(parsedStokMin) || parsedStokMin < 0) {
+      showToast('Stok minimum harus berupa angka valid >= 0.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await saveBarang(user, firebaseUser.uid, {
@@ -102,8 +114,8 @@ export function MasterBarangClient() {
         kodeBarang,
         nama,
         satuan,
-        hargaStandar: Number(hargaStandar) || 0,
-        stokMinimum: Math.max(0, Number(stokMinimum) || 0),
+        hargaStandar: parsedHarga,
+        stokMinimum: parsedStokMin,
         kategoriId,
       });
       showToast(
@@ -178,9 +190,14 @@ export function MasterBarangClient() {
         .toUpperCase();
       const namaBrg = String(raw.nama_barang ?? raw.Nama_Barang ?? raw.nama ?? '').trim();
       const sat = String(raw.satuan ?? raw.Satuan ?? '').trim();
-      const harga = Number(raw.harga_standar ?? raw.Harga_Standar ?? raw.harga ?? 0);
+      const rawHarga = raw.harga_standar ?? raw.Harga_Standar ?? raw.harga;
+      const parsedHarga =
+        rawHarga !== undefined && rawHarga !== '' ? parseFlexibleNumber(rawHarga) : 0;
+      const harga = parsedHarga;
       const rawMin = raw.stok_minimum ?? raw.Stok_Minimum;
-      const min = rawMin !== undefined && rawMin !== '' ? Math.max(0, Number(rawMin) || 0) : 0;
+      const parsedMin =
+        rawMin !== undefined && rawMin !== '' ? parseFlexibleNumber(rawMin) : 0;
+      const min = Number.isFinite(parsedMin) ? Math.max(0, parsedMin) : 0;
       const kat = String(raw.kategori ?? raw.Kategori ?? '').trim();
 
       let error = '';
@@ -190,6 +207,8 @@ export function MasterBarangClient() {
         error = `Kode ${kode} sudah ada`;
       } else if (!Number.isFinite(harga) || harga < 0) {
         error = 'Harga tidak valid';
+      } else if (!Number.isFinite(parsedMin) || parsedMin < 0) {
+        error = 'Stok minimum tidak valid';
       }
 
       return {

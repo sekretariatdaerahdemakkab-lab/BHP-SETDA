@@ -300,8 +300,26 @@ export function RekapPersediaanClient() {
       return;
     }
 
+    const incompleteRow = draftRows.find((r) => {
+      const hasBarang = Boolean(r.barangId);
+      const qtyNum = Number(r.qty);
+      const hasQtyInput = String(r.qty).trim() !== '';
+      const hargaNum = Number(r.hargaSatuan || 0);
+      if (hasBarang && (!Number.isFinite(qtyNum) || qtyNum <= 0)) return true;
+      if (!hasBarang && hasQtyInput) return true;
+      if (hasBarang && (!Number.isFinite(hargaNum) || hargaNum < 0)) return true;
+      return false;
+    });
+    if (incompleteRow) {
+      showToast(
+        'Periksa baris Saldo Awal: pastikan barang dipilih, kuantitas > 0, dan harga satuan valid.',
+        'error'
+      );
+      return;
+    }
+
     const validItems = draftRows
-      .filter((r) => r.barangId && Number(r.qty) > 0)
+      .filter((r) => r.barangId && Number.isFinite(Number(r.qty)) && Number(r.qty) > 0)
       .map((r) => ({
         barangId: r.barangId,
         tanggal: r.tanggal || `${tahun}-01-01`,
@@ -350,15 +368,25 @@ export function RekapPersediaanClient() {
   const handleSaveEditSaldo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser || !editingSaldo) return;
+    const qtyNum = Number(editQty);
+    const hargaNum = Number(editHarga || 0);
+    if (!editBarangId || !editTanggal || !editNoBukti.trim()) {
+      showToast('Barang, Tanggal, dan Nomor Bukti wajib diisi.', 'error');
+      return;
+    }
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0 || !Number.isFinite(hargaNum) || hargaNum < 0) {
+      showToast('Unit (> 0) dan Harga Satuan (>= 0) harus berupa angka yang valid.', 'error');
+      return;
+    }
     setSavingEdit(true);
     try {
       await updateTransaksi(user, firebaseUser.uid, {
         id: editingSaldo.id,
         tanggal: editTanggal,
-        noBukti: editNoBukti,
+        noBukti: editNoBukti.trim(),
         barangId: editBarangId,
-        qty: Number(editQty),
-        hargaSatuan: Math.max(0, Number(editHarga) || 0),
+        qty: qtyNum,
+        hargaSatuan: Math.max(0, hargaNum),
         keterangan: editKeterangan,
       });
       showToast('Saldo Awal berhasil diperbarui.', 'success');
@@ -908,7 +936,11 @@ export function RekapPersediaanClient() {
                   <span className="text-xs font-medium text-slate-600">Dari Bulan:</span>
                   <select
                     value={bulanDari}
-                    onChange={(e) => setBulanDari(Number(e.target.value))}
+                    onChange={(e) => {
+                      const nextDari = Number(e.target.value);
+                      setBulanDari(nextDari);
+                      if (nextDari > bulanSampai) setBulanSampai(nextDari);
+                    }}
                     className="h-9 px-3 text-xs border border-slate-300 rounded-lg bg-white"
                   >
                     {NAMA_BULAN.map((b, idx) => (
@@ -920,7 +952,11 @@ export function RekapPersediaanClient() {
                   <span className="text-xs font-medium text-slate-600">s.d.</span>
                   <select
                     value={bulanSampai}
-                    onChange={(e) => setBulanSampai(Number(e.target.value))}
+                    onChange={(e) => {
+                      const nextSampai = Number(e.target.value);
+                      setBulanSampai(nextSampai);
+                      if (nextSampai < bulanDari) setBulanDari(nextSampai);
+                    }}
                     className="h-9 px-3 text-xs border border-slate-300 rounded-lg bg-white"
                   >
                     {NAMA_BULAN.map((b, idx) => (
@@ -1509,6 +1545,7 @@ export function RekapPersediaanClient() {
                           </label>
                           <input
                             type="date"
+                            required
                             value={editTanggal}
                             onChange={(e) => setEditTanggal(e.target.value)}
                             className="w-full h-8 px-2 text-xs border border-slate-300 rounded-md bg-white"
@@ -1520,6 +1557,7 @@ export function RekapPersediaanClient() {
                           </label>
                           <input
                             type="text"
+                            required
                             value={editNoBukti}
                             onChange={(e) => setEditNoBukti(e.target.value)}
                             className="w-full h-8 px-2 text-xs border border-slate-300 rounded-md bg-white"
@@ -1533,6 +1571,7 @@ export function RekapPersediaanClient() {
                             type="number"
                             min="0.01"
                             step="any"
+                            required
                             value={editQty}
                             onChange={(e) => setEditQty(e.target.value)}
                             className="w-full h-8 px-2 text-xs text-right font-mono border border-slate-300 rounded-md bg-white"

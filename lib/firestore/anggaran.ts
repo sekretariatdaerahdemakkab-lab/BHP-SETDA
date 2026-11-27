@@ -126,7 +126,11 @@ export async function savePlafon(
   const tahun = Number(input.tahun);
   const kodeRekening = input.kodeRekening.trim().slice(0, 50);
   const namaKegiatan = input.namaKegiatan.trim().slice(0, 200);
-  const paguAnggaran = Math.max(0, Number(input.paguAnggaran) || 0);
+  const rawPagu = Number(input.paguAnggaran);
+  if (!Number.isFinite(rawPagu) || rawPagu < 0) {
+    throw new Error('Pagu anggaran harus berupa angka valid >= 0.');
+  }
+  const paguAnggaran = Math.round(rawPagu);
 
   if (!tahun || !kodeRekening || !namaKegiatan) {
     throw new Error('Tahun, Bagian, Kode Rekening, dan Nama Kegiatan wajib diisi.');
@@ -409,10 +413,14 @@ export async function executeRekonAction(
     throw new Error(`Periode berstatus "${currentStatus}" dan sudah terkunci.`);
   }
 
-  const nilaiFungsional =
-    input.nilaiFungsional !== undefined
-      ? Math.max(0, Number(input.nilaiFungsional) || 0)
-      : Number(existing?.nilaiFungsional || 0);
+  let nilaiFungsional = Number(existing?.nilaiFungsional || 0);
+  if (input.nilaiFungsional !== undefined) {
+    const rawFungsional = Number(input.nilaiFungsional);
+    if (!Number.isFinite(rawFungsional) || rawFungsional < 0) {
+      throw new Error('Nilai belanja fungsional harus berupa angka valid >= 0.');
+    }
+    nilaiFungsional = Math.round(rawFungsional);
+  }
   const catatan =
     input.catatan !== undefined
       ? input.catatan.trim().slice(0, 500)
@@ -426,11 +434,11 @@ export async function executeRekonAction(
 
   if (input.action === 'submit') {
     nextStatus = 'Dikirim';
-    submittedBy = currentUser.namaLengkap;
+    submittedBy = currentUser.namaLengkap.slice(0, 120);
     submittedAt = nowIso;
   } else if (input.action === 'approve') {
     nextStatus = 'Disetujui';
-    approvedBy = currentUser.namaLengkap;
+    approvedBy = currentUser.namaLengkap.slice(0, 120);
     approvedAt = nowIso;
   } else if (input.action === 'unlock') {
     nextStatus = 'Draft';

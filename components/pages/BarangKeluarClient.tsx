@@ -30,6 +30,8 @@ import {
   formatNumber,
   formatRupiah,
   getDefaultDateForYear,
+  parseExcelDateISO,
+  parseFlexibleNumber,
 } from '@/lib/format';
 import type { Barang, RekapPersediaanRow, TransaksiPersediaan } from '@/lib/types';
 
@@ -203,8 +205,24 @@ export function BarangKeluarClient() {
   const handleSaveBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser) return;
-    if (draftRows.some((d) => !d.tanggal || !d.noBukti.trim())) {
-      showToast('Tanggal dan Nomor Bukti (BAST/Nota/SPB) wajib diisi pada setiap baris.', 'error');
+    if (!activeFormBagian) {
+      showToast('Pilih Gudang Bagian terlebih dahulu.', 'error');
+      return;
+    }
+    if (
+      draftRows.some(
+        (d) =>
+          !d.tanggal ||
+          !d.noBukti.trim() ||
+          !d.barangId ||
+          !Number.isFinite(Number(d.qty)) ||
+          Number(d.qty) <= 0
+      )
+    ) {
+      showToast(
+        'Tanggal, Nomor Bukti, Barang, dan Qty (> 0) wajib valid pada setiap baris.',
+        'error'
+      );
       return;
     }
     setSaving(true);
@@ -234,10 +252,19 @@ export function BarangKeluarClient() {
   const handleSaveOpname = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser) return;
+    if (!opBagianId || !opBarangId || !opTanggal || !opNoBukti.trim()) {
+      showToast('Gudang Bagian, Barang, Tanggal, dan Nomor BA Opname wajib diisi.', 'error');
+      return;
+    }
+    const stokFisik = Number(opStokFisik);
+    if (!Number.isFinite(stokFisik) || stokFisik < 0) {
+      showToast('Stok fisik hasil hitung harus berupa angka >= 0.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const currentSaldo = getAvailableStock(opBagianId, opBarangId);
-      const diff = Number(opStokFisik) - currentSaldo;
+      const diff = stokFisik - currentSaldo;
       if (Math.abs(diff) < 0.0001) {
         showToast('Stok fisik sudah sama dengan saldo sistem (tidak ada selisih).', 'info');
         setOpnameOpen(false);
@@ -281,8 +308,13 @@ export function BarangKeluarClient() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editItem || !user || !firebaseUser) return;
-    if (!editTanggal || !editNoBukti.trim()) {
-      showToast('Tanggal dan Nomor Bukti wajib diisi.', 'error');
+    if (!editTanggal || !editNoBukti.trim() || !editBarangId) {
+      showToast('Tanggal, Nomor Bukti, dan Barang wajib diisi.', 'error');
+      return;
+    }
+    const parsedQty = Number(editQty);
+    if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+      showToast('Jumlah barang keluar harus berupa angka valid lebih dari 0.', 'error');
       return;
     }
     setSaving(true);
@@ -351,14 +383,15 @@ export function BarangKeluarClient() {
         : bagianList[0]?.id || '';
 
     return rawRows.map((raw, idx) => {
-      const tgl = String(raw.tanggal ?? raw.Tanggal ?? getDefaultDateForYear(tahun))
-        .trim()
-        .slice(0, 10);
+      const tgl = parseExcelDateISO(
+        raw.tanggal ?? raw.Tanggal,
+        getDefaultDateForYear(tahun)
+      );
       const bukti = String(raw.no_bukti ?? raw.No_Bukti ?? '').trim();
       const itemKey = String(
         raw.kode_atau_nama_barang ?? raw.kode_barang ?? raw.nama_barang ?? ''
       ).trim();
-      const qty = Number(raw.qty ?? raw.Qty ?? 0);
+      const qty = parseFlexibleNumber(raw.qty ?? raw.Qty ?? 0);
       const ket = String(raw.keterangan ?? raw.Keterangan ?? '').trim();
 
       const matched = barangList.find(
@@ -368,7 +401,8 @@ export function BarangKeluarClient() {
       );
 
       let error = '';
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl)) error = 'Tanggal harus YYYY-MM-DD';
+      if (!targetBagian) error = 'Gudang Bagian belum tersedia';
+      else if (!/^\d{4}-\d{2}-\d{2}$/.test(tgl)) error = 'Tanggal harus YYYY-MM-DD';
       else if (!bukti) error = 'No Bukti kosong';
       else if (!matched) error = `Barang "${itemKey}" tidak ditemukan`;
       else if (!Number.isFinite(qty) || qty <= 0) error = 'Qty harus > 0';

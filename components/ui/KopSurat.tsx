@@ -10,17 +10,19 @@ interface KopSuratProps {
 }
 
 export function KopSurat({ instansi, subLabel }: KopSuratProps) {
-  const [kopBroken, setKopBroken] = useState(false);
+  const [brokenKopUrl, setBrokenKopUrl] = useState<string | null>(null);
+  const kopUrl = instansi?.kopSuratUrl;
+  const kopBroken = Boolean(kopUrl && brokenKopUrl === kopUrl);
 
-  if (instansi?.kopSuratUrl && !kopBroken) {
+  if (kopUrl && !kopBroken) {
     return (
       <div className="w-full mb-4 border-b-2 border-black pb-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={instansi.kopSuratUrl}
+          src={kopUrl}
           alt="Kop Surat Instansi"
           referrerPolicy="no-referrer"
-          onError={() => setKopBroken(true)}
+          onError={() => setBrokenKopUrl(kopUrl)}
           className="w-full max-h-36 object-contain mx-auto"
         />
       </div>

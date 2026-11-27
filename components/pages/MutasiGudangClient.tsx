@@ -175,8 +175,17 @@ export function MutasiGudangClient() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser) return;
+    if (!bagianAsalId || !bagianTujuanId) {
+      showToast('Gudang Bagian Asal dan Tujuan wajib dipilih.', 'error');
+      return;
+    }
     if (bagianAsalId === bagianTujuanId) {
       showToast('Gudang Bagian Asal dan Tujuan tidak boleh sama.', 'error');
+      return;
+    }
+    const qtyNum = Number(qty);
+    if (!barangId || !tanggal || !noBukti.trim() || !Number.isFinite(qtyNum) || qtyNum <= 0) {
+      showToast('Barang, Tanggal, Nomor Bukti, dan Jumlah Transfer (> 0) wajib valid.', 'error');
       return;
     }
     setSaving(true);
@@ -399,7 +408,13 @@ export function MutasiGudangClient() {
                 <select
                   value={bagianAsalId}
                   disabled={isBagianLocked || Boolean(editingMutasi)}
-                  onChange={(e) => setBagianAsalId(e.target.value)}
+                  onChange={(e) => {
+                    const nextAsal = e.target.value;
+                    setBagianAsalId(nextAsal);
+                    if (bagianTujuanId === nextAsal) {
+                      setBagianTujuanId(allBagian.find((b) => b.id !== nextAsal)?.id || '');
+                    }
+                  }}
                   className="w-full h-10 px-3 text-sm border border-slate-300 rounded-lg bg-white disabled:bg-slate-100"
                 >
                   {(isBagianLocked ? bagianList : allBagian).map((b) => (

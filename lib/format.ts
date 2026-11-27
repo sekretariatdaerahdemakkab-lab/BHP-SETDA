@@ -189,3 +189,123 @@ export function getPeriodMonthRange(
       return { bulanDari: 1, bulanSampai: 12, label: 'Satu Tahun Penuh (Januari - Desember)' };
   }
 }
+
+export function roundQty(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round(value * 100) / 100;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+export function parseFlexibleNumber(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+  if (value === null || value === undefined) return Number.NaN;
+  let str = String(value).trim();
+  if (!str) return Number.NaN;
+
+  // Strip currency prefixes/spaces
+  str = str.replace(/rp\.?/gi, '').replace(/\s+/g, '');
+  if (!str) return Number.NaN;
+
+  const hasDot = str.includes('.');
+  const hasComma = str.includes(',');
+
+  if (hasDot && hasComma) {
+    if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+      // Indonesian style: 1.250.000,50
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      // US style: 1,250,000.50
+      str = str.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    if (/^-?\d{1,3}(,\d{3})+$/.test(str)) {
+      str = str.replace(/,/g, '');
+    } else {
+      str = str.replace(',', '.');
+    }
+  } else if (hasDot) {
+    if (/^-?\d{1,3}(\.\d{3})+$/.test(str)) {
+      str = str.replace(/\./g, '');
+    }
+  }
+
+  const parsed = Number(str);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function isValidCalendarYMD(y: number, m: number, d: number): boolean {
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false;
+  if (y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const check = new Date(Date.UTC(y, m - 1, d));
+  return (
+    check.getUTCFullYear() === y &&
+    check.getUTCMonth() === m - 1 &&
+    check.getUTCDate() === d
+  );
+}
+
+export function parseExcelDateISO(value: unknown, fallback = ''): string {
+  if (value === null || value === undefined || value === '') return fallback;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
+    const utcMs = Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000;
+    const dt = new Date(utcMs);
+    const y = dt.getUTCFullYear();
+    const m = dt.getUTCMonth() + 1;
+    const d = dt.getUTCDate();
+    if (isValidCalendarYMD(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  const str = String(value).trim();
+  if (!str) return fallback;
+
+  // Numeric Excel serial passed as string
+  if (/^\d{5}(\.\d+)?$/.test(str)) {
+    const num = Number(str);
+    if (num > 20000 && num < 80000) {
+      const utcMs = Date.UTC(1899, 11, 30) + Math.floor(num) * 86400000;
+      const dt = new Date(utcMs);
+      const y = dt.getUTCFullYear();
+      const m = dt.getUTCMonth() + 1;
+      const d = dt.getUTCDate();
+      if (isValidCalendarYMD(y, m, d)) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  // YYYY-MM-DD or YYYY/MM/DD (with optional ISO time suffix)
+  const ymdMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s].*)?$/);
+  if (ymdMatch) {
+    const y = Number(ymdMatch[1]);
+    const m = Number(ymdMatch[2]);
+    const d = Number(ymdMatch[3]);
+    if (isValidCalendarYMD(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmyMatch) {
+    const d = Number(dmyMatch[1]);
+    const m = Number(dmyMatch[2]);
+    const y = Number(dmyMatch[3]);
+    if (isValidCalendarYMD(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  return str.slice(0, 10);
+}

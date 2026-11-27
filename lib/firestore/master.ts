@@ -169,12 +169,13 @@ export async function deleteBagian(currentUser: UserProfile, id: string): Promis
     throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat menghapus Bagian.');
   }
   try {
-    const [trxSnap, plafonSnap] = await Promise.all([
+    const [trxSnap, plafonSnap, rekonSnap] = await Promise.all([
       getDocs(query(collection(db, 'transaksi_persediaan'), where('bagianId', '==', id), limit(1))),
       getDocs(query(collection(db, 'plafon_anggaran'), where('bagianId', '==', id), limit(1))),
+      getDocs(query(collection(db, 'rekon_periode'), where('bagianId', '==', id), limit(1))),
     ]);
-    if (!trxSnap.empty || !plafonSnap.empty) {
-      throw new Error('Bagian tidak dapat dihapus karena masih memiliki plafon anggaran atau transaksi persediaan.');
+    if (!trxSnap.empty || !plafonSnap.empty || !rekonSnap.empty) {
+      throw new Error('Bagian tidak dapat dihapus karena masih memiliki plafon anggaran, rekonsiliasi periode, atau transaksi persediaan.');
     }
     await deleteDoc(doc(db, 'bagian', id));
   } catch (err) {
@@ -324,8 +325,16 @@ export async function saveBarang(
   const kodeBarang = input.kodeBarang.trim().toUpperCase().slice(0, 40);
   const nama = input.nama.trim().slice(0, 150);
   const satuan = input.satuan.trim().slice(0, 40);
-  const hargaStandar = Math.max(0, Number(input.hargaStandar) || 0);
-  const stokMinimum = Math.max(0, Number(input.stokMinimum) || 0);
+  const rawHarga = Number(input.hargaStandar);
+  const rawStokMin = Number(input.stokMinimum);
+  if (!Number.isFinite(rawHarga) || rawHarga < 0) {
+    throw new Error('Harga standar barang harus berupa angka valid >= 0.');
+  }
+  if (!Number.isFinite(rawStokMin) || rawStokMin < 0) {
+    throw new Error('Stok minimum barang harus berupa angka valid >= 0.');
+  }
+  const hargaStandar = Math.round(rawHarga);
+  const stokMinimum = Math.round(rawStokMin);
   const kategoriId = input.kategoriId;
 
   if (!kodeBarang || !nama || !satuan || !kategoriId) {
@@ -422,9 +431,11 @@ export async function importBarangBatch(
         kodeBarang,
         nama,
         satuan,
-        hargaStandar: Math.max(0, Number(item.hargaStandar) || 0),
+        hargaStandar: Number.isFinite(Number(item.hargaStandar))
+          ? Math.max(0, Math.round(Number(item.hargaStandar)))
+          : 0,
         stokMinimum: Number.isFinite(Number(item.stokMinimum))
-          ? Math.max(0, Number(item.stokMinimum))
+          ? Math.max(0, Math.round(Number(item.stokMinimum)))
           : 0,
         kategoriId: katId,
         ownerId: ownerUid,

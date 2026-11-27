@@ -43,7 +43,13 @@ export function KartuPersediaanClient() {
   }, []);
 
   const loadKartu = useCallback(async () => {
-    if (!user || !bagianId || !barangId) return;
+    if (!user || !bagianId || !barangId) {
+      setRows([]);
+      setSaldoAkhir(0);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
       const json = await getKartuPersediaan(user, tahun, bagianId, barangId);
       setRows(json.rows || []);

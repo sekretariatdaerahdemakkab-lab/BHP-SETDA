@@ -51,6 +51,7 @@ export function AnggaranRekonClient() {
   const [pKegiatan, setPKegiatan] = useState('');
   const [pPagu, setPPagu] = useState('');
   const [savingPlafon, setSavingPlafon] = useState(false);
+  const [deletingPlafon, setDeletingPlafon] = useState(false);
   const [deletePlafonTarget, setDeletePlafonTarget] = useState<PlafonAnggaran | null>(null);
 
   // Rekon state
@@ -62,6 +63,7 @@ export function AnggaranRekonClient() {
   const [rekonSemesterFilter, setRekonSemesterFilter] = useState<1 | 2 | 'ALL'>('ALL');
   const [fungsionalDrafts, setFungsionalDrafts] = useState<Record<string, string>>({});
   const [catatanDrafts, setCatatanDrafts] = useState<Record<string, string>>({});
+  const [processingRekon, setProcessingRekon] = useState(false);
   const [rekonActionTarget, setRekonActionTarget] = useState<{
     action: 'submit' | 'approve' | 'unlock';
     row: RekonPeriodeRow;
@@ -176,6 +178,15 @@ export function AnggaranRekonClient() {
   const handleSavePlafon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firebaseUser) return;
+    if (!pBagianId || !pKodeRek.trim() || !pKegiatan.trim()) {
+      showToast('Unit Bagian, Kode Rekening, dan Nama Kegiatan wajib diisi.', 'error');
+      return;
+    }
+    const parsedPagu = Number(pPagu);
+    if (!Number.isFinite(parsedPagu) || parsedPagu < 0) {
+      showToast('Pagu anggaran harus berupa angka valid >= 0.', 'error');
+      return;
+    }
     setSavingPlafon(true);
     try {
       await savePlafon(user, firebaseUser.uid, {
@@ -184,7 +195,7 @@ export function AnggaranRekonClient() {
         bagianId: pBagianId,
         kodeRekening: pKodeRek,
         namaKegiatan: pKegiatan,
-        paguAnggaran: Number(pPagu) || 0,
+        paguAnggaran: parsedPagu,
       });
       showToast('Plafon anggaran berhasil disimpan.', 'success');
       setPlafonModal(false);
@@ -197,7 +208,8 @@ export function AnggaranRekonClient() {
   };
 
   const handleDeletePlafon = async () => {
-    if (!deletePlafonTarget || !user) return;
+    if (!deletePlafonTarget || !user || deletingPlafon) return;
+    setDeletingPlafon(true);
     try {
       await deletePlafon(user, deletePlafonTarget.id);
       showToast('Pos plafon anggaran berhasil dihapus.', 'success');
@@ -205,13 +217,25 @@ export function AnggaranRekonClient() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Gagal menghapus plafon.', 'error');
     } finally {
+      setDeletingPlafon(false);
       setDeletePlafonTarget(null);
     }
   };
 
+  const parseDraftNilai = (raw: string | undefined, fallback: number): number | null => {
+    if (raw === undefined || raw.trim() === '') return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return parsed;
+  };
+
   const handleSaveFungsional = async (row: RekonPeriodeRow) => {
     if (!user || !firebaseUser) return;
-    const nilaiFungsional = Number(fungsionalDrafts[row.id]) || 0;
+    const nilaiFungsional = parseDraftNilai(fungsionalDrafts[row.id], 0);
+    if (nilaiFungsional === null) {
+      showToast('Nilai belanja fungsional harus berupa angka valid >= 0.', 'error');
+      return;
+    }
     const catatan = catatanDrafts[row.id] || '';
 
     try {
@@ -236,8 +260,15 @@ export function AnggaranRekonClient() {
   };
 
   const handleConfirmRekonAction = async () => {
-    if (!rekonActionTarget || !user || !firebaseUser) return;
+    if (!rekonActionTarget || !user || !firebaseUser || processingRekon) return;
     const { action, row } = rekonActionTarget;
+    const nilaiFungsional = parseDraftNilai(fungsionalDrafts[row.id], row.nilaiFungsional);
+    if (nilaiFungsional === null) {
+      showToast('Nilai belanja fungsional harus berupa angka valid >= 0.', 'error');
+      setRekonActionTarget(null);
+      return;
+    }
+    setProcessingRekon(true);
     try {
       await runRekonAction(user, firebaseUser.uid, {
         action,
@@ -246,7 +277,7 @@ export function AnggaranRekonClient() {
         bagianId: row.bagianId,
         mode: row.periodeTipe === 'SEMESTER' ? 'semester' : 'bulanan',
         semester: row.semester,
-        nilaiFungsional: Number(fungsionalDrafts[row.id]) || row.nilaiFungsional,
+        nilaiFungsional,
         catatan: catatanDrafts[row.id] ?? row.catatan,
       });
       const msg =
@@ -263,6 +294,7 @@ export function AnggaranRekonClient() {
         'error'
       );
     } finally {
+      setProcessingRekon(false);
       setRekonActionTarget(null);
     }
   };
@@ -868,6 +900,7 @@ export function AnggaranRekonClient() {
         message={`Hapus pos anggaran "${deletePlafonTarget?.namaKegiatan}"?`}
         confirmLabel="Hapus"
         danger
+        loading={deletingPlafon}
         onConfirm={handleDeletePlafon}
         onCancel={() => setDeletePlafonTarget(null)}
       />
@@ -890,6 +923,7 @@ export function AnggaranRekonClient() {
         }
         confirmLabel="Ya, Konfirmasi"
         danger={rekonActionTarget?.action === 'unlock'}
+        loading={processingRekon}
         onConfirm={handleConfirmRekonAction}
         onCancel={() => setRekonActionTarget(null)}
       />

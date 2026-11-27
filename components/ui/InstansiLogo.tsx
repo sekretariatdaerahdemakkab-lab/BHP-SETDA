@@ -15,7 +15,8 @@ export function InstansiLogo({
   size = 40,
   className = '',
 }: InstansiLogoProps) {
-  const [broken, setBroken] = useState(false);
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const broken = Boolean(logoUrl && brokenUrl === logoUrl);
 
   if (logoUrl && !broken) {
     return (
@@ -24,7 +25,7 @@ export function InstansiLogo({
         src={logoUrl}
         alt={alt}
         referrerPolicy="no-referrer"
-        onError={() => setBroken(true)}
+        onError={() => setBrokenUrl(logoUrl)}
         style={{ width: size, height: size }}
         className={`object-contain shrink-0 ${className}`}
       />

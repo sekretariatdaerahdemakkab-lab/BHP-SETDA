@@ -131,8 +131,14 @@ export function MasterKategoriClient() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={3} className="px-5 py-8 text-center text-slate-500">
+                  <td colSpan={canEdit ? 3 : 2} className="px-5 py-8 text-center text-slate-500">
                     Memuat data kategori...
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={canEdit ? 3 : 2} className="px-5 py-8 text-center text-slate-500">
+                    Belum ada data kategori barang.
                   </td>
                 </tr>
               ) : (

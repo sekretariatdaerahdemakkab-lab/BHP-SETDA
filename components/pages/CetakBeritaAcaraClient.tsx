@@ -95,11 +95,21 @@ export function CetakBeritaAcaraClient() {
   }, [loadData]);
 
   const groupedByKategori = rows.reduce<
-    Record<string, { kodeRekening: string; namaKategori: string; items: RekapPersediaanRow[]; subtotal: number }>
+    Record<
+      string,
+      {
+        kategoriId: string;
+        kodeRekening: string;
+        namaKategori: string;
+        items: RekapPersediaanRow[];
+        subtotal: number;
+      }
+    >
   >((acc, row) => {
     const key = row.kategoriId;
     if (!acc[key]) {
       acc[key] = {
+        kategoriId: key,
         kodeRekening: row.kodeRekening,
         namaKategori: row.kategoriNama,
         items: [],
@@ -107,12 +117,12 @@ export function CetakBeritaAcaraClient() {
       };
     }
     acc[key].items.push(row);
-    acc[key].subtotal += row.totalNilai;
+    acc[key].subtotal = Math.round(acc[key].subtotal + row.totalNilai);
     return acc;
   }, {});
 
   const kategoriGroups = Object.values(groupedByKategori);
-  const grandTotal = rows.reduce((a, r) => a + r.totalNilai, 0);
+  const grandTotal = Math.round(rows.reduce((a, r) => a + r.totalNilai, 0));
   const activeBagianName =
     bagianId === 'ALL'
       ? 'Seluruh Bagian (Konsolidasi Sekretariat Daerah)'
@@ -248,7 +258,11 @@ export function CetakBeritaAcaraClient() {
                 <span>Dari</span>
                 <select
                   value={bulanDari}
-                  onChange={(e) => setBulanDari(Number(e.target.value))}
+                  onChange={(e) => {
+                    const nextDari = Number(e.target.value);
+                    setBulanDari(nextDari);
+                    if (nextDari > bulanSampai) setBulanSampai(nextDari);
+                  }}
                   className="h-9 px-3 border border-slate-300 rounded-lg bg-white"
                 >
                   {NAMA_BULAN.map((b, i) => (
@@ -260,7 +274,11 @@ export function CetakBeritaAcaraClient() {
                 <span>s.d.</span>
                 <select
                   value={bulanSampai}
-                  onChange={(e) => setBulanSampai(Number(e.target.value))}
+                  onChange={(e) => {
+                    const nextSampai = Number(e.target.value);
+                    setBulanSampai(nextSampai);
+                    if (nextSampai < bulanDari) setBulanDari(nextSampai);
+                  }}
                   className="h-9 px-3 border border-slate-300 rounded-lg bg-white"
                 >
                   {NAMA_BULAN.map((b, i) => (
@@ -385,7 +403,7 @@ export function CetakBeritaAcaraClient() {
             </thead>
             <tbody>
               {kategoriGroups.map((grp) => (
-                <React.Fragment key={grp.kodeRekening + grp.namaKategori}>
+                <React.Fragment key={grp.kategoriId}>
                   <tr className="bg-slate-50 font-bold">
                     <td colSpan={9} className="border border-black px-2 py-1.5">
                       {grp.kodeRekening} — {grp.namaKategori}

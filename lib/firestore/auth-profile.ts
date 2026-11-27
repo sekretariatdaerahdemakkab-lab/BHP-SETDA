@@ -442,6 +442,9 @@ export async function createStaffUserAccount(
     throw new Error('Password minimal 6 karakter.');
   }
 
+  if (!['Superadmin', 'Pengurus Barang', 'Admin Persediaan'].includes(input.role)) {
+    throw new Error('Role pengguna tidak valid.');
+  }
   const needsBagian = input.role === 'Admin Persediaan';
   if (needsBagian && !input.bagianId) {
     throw new Error('Pilihan Bagian wajib dipilih untuk Admin Persediaan.');
@@ -508,6 +511,9 @@ export async function updateStaffUserAccount(
     throw new Error('Nama lengkap wajib diisi.');
   }
 
+  if (!['Superadmin', 'Pengurus Barang', 'Admin Persediaan'].includes(input.role)) {
+    throw new Error('Role pengguna tidak valid.');
+  }
   const needsBagian = input.role === 'Admin Persediaan';
   if (needsBagian && !input.bagianId) {
     throw new Error('Pilihan Bagian wajib dipilih untuk Admin Persediaan.');

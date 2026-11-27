@@ -325,7 +325,7 @@ service cloud.firestore {
     }
 
     match /instansi/{docId} {
-      allow get: if isValidId(docId) && (isActiveUser() || isAdmin());
+      allow get: if isValidId(docId) && (docId == 'default' || isActiveUser() || isAdmin());
       allow list: if isActiveUser() || isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
       allow create: if isValidId(docId)
         && isAdmin()
@@ -408,7 +408,7 @@ service cloud.firestore {
         isCentralStaff() ||
         (resource != null && isBagianStaff(existing().bagianId))
       );
-      allow list: if isCentralStaff() || (isActiveUser() && resource.data.bagianId == userDoc().bagianId);
+      allow list: if isCentralStaff() || (isActiveUser() && 'bagianId' in userDoc() && resource.data.bagianId == userDoc().bagianId);
       allow create: if isValidId(plafonId)
         && isValidPlafon(incoming())
         && incoming().ownerId == request.auth.uid
@@ -425,7 +425,7 @@ service cloud.firestore {
 
     match /rekon_periode/{rekonId} {
       allow get: if isValidId(rekonId) && (isActiveUser() || isAdmin());
-      allow list: if isCentralStaff() || (isActiveUser() && resource.data.bagianId == userDoc().bagianId);
+      allow list: if isCentralStaff() || (isActiveUser() && 'bagianId' in userDoc() && resource.data.bagianId == userDoc().bagianId);
       allow create: if isValidId(rekonId)
         && isValidRekon(incoming())
         && incoming().ownerId == request.auth.uid
@@ -463,7 +463,7 @@ service cloud.firestore {
       );
       allow list: if isCentralStaff() || (
         isActiveUser() && (
-          resource.data.bagianId == userDoc().bagianId ||
+          ('bagianId' in userDoc() && resource.data.bagianId == userDoc().bagianId) ||
           (resource.data.jenis == 'MUTASI_MASUK' && resource.data.ownerId == request.auth.uid)
         )
       );
@@ -555,7 +555,7 @@ service cloud.firestore {
       );
       allow list: if isCentralStaff() || (
         isActiveUser() && (
-          resource.data.bagianId == userDoc().bagianId ||
+          ('bagianId' in userDoc() && resource.data.bagianId == userDoc().bagianId) ||
           (resource.data.jenis == 'MUTASI_MASUK' && resource.data.ownerId == request.auth.uid)
         )
       );
@@ -609,7 +609,7 @@ service cloud.firestore {
 
     match /stok_saldo/{saldoId} {
       allow get: if isValidId(saldoId) && (isActiveUser() || isAdmin());
-      allow list: if isCentralStaff() || (isActiveUser() && resource.data.bagianId == userDoc().bagianId);
+      allow list: if isCentralStaff() || (isActiveUser() && 'bagianId' in userDoc() && resource.data.bagianId == userDoc().bagianId);
       allow create: if isValidId(saldoId)
         && isValidStokSaldo(incoming())
         && incoming().ownerId == request.auth.uid

@@ -10,6 +10,7 @@ import {
   type WriteBatch,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
+import { roundQty } from '@/lib/format';
 import type { JenisTransaksi, TransaksiPersediaan, UserProfile } from '@/lib/types';
 import { listBagian, listBarang } from './master';
 import {
@@ -132,11 +133,11 @@ async function stageRecalculateIntoBatch(
         a.id.localeCompare(b.id)
     );
 
-  const existingKrtIds = new Set<string>();
+  const existingKrtMap = new Map<string, Record<string, unknown>>();
   krtSnap.forEach((d) => {
-    const data = d.data() as { barangId?: string };
+    const data = d.data() as Record<string, unknown>;
     if (data.barangId === barangId) {
-      existingKrtIds.add(d.id);
+      existingKrtMap.set(d.id, data);
     }
   });
 
@@ -149,7 +150,7 @@ async function stageRecalculateIntoBatch(
     const inflow = isInflow(t.jenis);
     const qtyMasuk = inflow ? t.qty : 0;
     const qtyKeluar = inflow ? 0 : t.qty;
-    runningBalance += qtyMasuk - qtyKeluar;
+    runningBalance = roundQty(runningBalance + qtyMasuk - qtyKeluar);
 
     if (runningBalance < -0.0001) {
       throw new Error(
@@ -164,28 +165,52 @@ async function stageRecalculateIntoBatch(
     const krtId = `krt_${row.id}`;
     activeKrtIds.add(krtId);
 
-    const krtPayload: Record<string, unknown> = {
-      transaksiId: row.id,
-      tahun: t.tahun,
-      bagianId: t.bagianId,
-      barangId: t.barangId,
-      tanggal: t.tanggal,
-      noBukti: t.noBukti,
-      jenis: t.jenis,
-      keterangan: t.keterangan || '',
-      qtyMasuk,
-      qtyKeluar,
-      sisaSaldo: Math.round(runningBalance * 100) / 100,
-      hargaSatuan: t.hargaSatuan,
-      nilaiMutasi: t.totalNilai,
-      ownerId: t.ownerId || ownerUid,
-      createdAt: t.createdAt,
-      updatedAt: serverTimestamp(),
-    };
-    batch.set(doc(db, 'kartu_persediaan', krtId), krtPayload);
+    const sisaSaldo = Math.max(0, roundQty(runningBalance));
+    const ket = t.keterangan || '';
+    const owner = t.ownerId || ownerUid;
+    const prev = existingKrtMap.get(krtId);
+    const isUnchanged =
+      prev !== undefined &&
+      prev.transaksiId === row.id &&
+      prev.tahun === t.tahun &&
+      prev.bagianId === t.bagianId &&
+      prev.barangId === t.barangId &&
+      prev.tanggal === t.tanggal &&
+      prev.noBukti === t.noBukti &&
+      prev.jenis === t.jenis &&
+      (prev.keterangan || '') === ket &&
+      Number(prev.qtyMasuk || 0) === qtyMasuk &&
+      Number(prev.qtyKeluar || 0) === qtyKeluar &&
+      Number(prev.sisaSaldo || 0) === sisaSaldo &&
+      Number(prev.hargaSatuan || 0) === t.hargaSatuan &&
+      Number(prev.nilaiMutasi || 0) === t.totalNilai &&
+      prev.ownerId === owner &&
+      prev.createdAt === t.createdAt;
+
+    if (!isUnchanged) {
+      const krtPayload: Record<string, unknown> = {
+        transaksiId: row.id,
+        tahun: t.tahun,
+        bagianId: t.bagianId,
+        barangId: t.barangId,
+        tanggal: t.tanggal,
+        noBukti: t.noBukti,
+        jenis: t.jenis,
+        keterangan: ket,
+        qtyMasuk,
+        qtyKeluar,
+        sisaSaldo,
+        hargaSatuan: t.hargaSatuan,
+        nilaiMutasi: t.totalNilai,
+        ownerId: owner,
+        createdAt: t.createdAt,
+        updatedAt: serverTimestamp(),
+      };
+      batch.set(doc(db, 'kartu_persediaan', krtId), krtPayload);
+    }
   }
 
-  for (const oldKrtId of existingKrtIds) {
+  for (const oldKrtId of existingKrtMap.keys()) {
     if (!activeKrtIds.has(oldKrtId)) {
       batch.delete(doc(db, 'kartu_persediaan', oldKrtId));
     }
@@ -197,7 +222,7 @@ async function stageRecalculateIntoBatch(
   batch.set(doc(db, 'stok_saldo', saldoId), {
     bagianId,
     barangId,
-    qty: Math.max(0, Math.round(runningBalance * 100) / 100),
+    qty: Math.max(0, roundQty(runningBalance)),
     hargaTerakhir: lastPrice,
     ownerId: existingSaldoOwner || ownerUid,
     updatedAt: serverTimestamp(),
@@ -354,10 +379,14 @@ export async function createTransaksiBatch(
     periodsToCheck.set(`${tahun}-${bulan}`, { tahun, bulan });
 
     const qty = Number(item.qty);
-    const hargaSatuan = Math.max(0, Number(item.hargaSatuan) || 0);
-    if (!item.barangId || !(qty > 0)) {
+    const rawHarga = item.hargaSatuan === undefined ? 0 : Number(item.hargaSatuan);
+    if (!item.barangId || !Number.isFinite(qty) || !(qty > 0)) {
       throw new Error('Item barang dan kuantitas (> 0) harus valid.');
     }
+    if (!Number.isFinite(rawHarga) || rawHarga < 0) {
+      throw new Error('Harga satuan tidak valid.');
+    }
+    const hargaSatuan = Math.max(0, rawHarga);
     const jenis: JenisTransaksi =
       input.mode === 'SALDO_AWAL'
         ? 'SALDO_AWAL'
@@ -388,9 +417,9 @@ export async function createTransaksiBatch(
       tanggal: itemTanggal,
       noBukti: itemNoBukti.slice(0, 100),
       barangId: item.barangId,
-      qty,
+      qty: roundQty(qty),
       hargaSatuan,
-      totalNilai: Math.round(qty * hargaSatuan),
+      totalNilai: Math.round(roundQty(qty) * hargaSatuan),
       ...(itemPlafonId ? { plafonId: itemPlafonId } : {}),
       keterangan: itemKeterangan,
       createdBy: currentUser.namaLengkap.slice(0, 120),
@@ -407,23 +436,43 @@ export async function createTransaksiBatch(
     await assertPeriodNotLocked(effectiveBagian, period.tahun, period.bulan);
   }
 
-  const batch = writeBatch(db);
+  // Commit in chunks so large Excel imports never exceed Firestore's 500-write batch limit
+  const MAX_ITEMS_PER_BATCH = 100;
+  let currentBatch = writeBatch(db);
+  let queuedItems = 0;
+
   for (const [barangId, staged] of stagedByBarang) {
-    for (const s of staged) {
-      batch.set(doc(db, 'transaksi_persediaan', s.id), {
-        ...s.data,
-        updatedAt: serverTimestamp(),
+    for (let offset = 0; offset < staged.length; offset += MAX_ITEMS_PER_BATCH) {
+      const slice = staged.slice(offset, offset + MAX_ITEMS_PER_BATCH);
+      if (queuedItems > 0 && queuedItems + slice.length > MAX_ITEMS_PER_BATCH) {
+        try {
+          await currentBatch.commit();
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, 'transaksi_persediaan/batch');
+        }
+        currentBatch = writeBatch(db);
+        queuedItems = 0;
+      }
+
+      for (const s of slice) {
+        currentBatch.set(doc(db, 'transaksi_persediaan', s.id), {
+          ...s.data,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      await stageRecalculateIntoBatch(currentBatch, effectiveBagian, barangId, ownerUid, {
+        upserts: slice,
       });
+      queuedItems += slice.length;
     }
-    await stageRecalculateIntoBatch(batch, effectiveBagian, barangId, ownerUid, {
-      upserts: staged,
-    });
   }
 
-  try {
-    await batch.commit();
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, 'transaksi_persediaan/batch');
+  if (queuedItems > 0) {
+    try {
+      await currentBatch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'transaksi_persediaan/batch');
+    }
   }
   return input.items.length;
 }
@@ -457,26 +506,40 @@ export async function updateTransaksi(
   assertCanWriteBagianTransaksi(currentUser, existing.bagianId);
   await assertPeriodNotLocked(existing.bagianId, existing.tahun, existing.bulan);
 
-  const newTahun = Number(input.tanggal.slice(0, 4));
-  const newBulan = Number(input.tanggal.slice(5, 7));
+  const cleanTanggal = input.tanggal.trim().slice(0, 10);
+  const cleanBukti = input.noBukti.trim().slice(0, 100);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanTanggal) || !cleanBukti || !input.barangId) {
+    throw new Error('Tanggal, Nomor Bukti, dan Item Barang wajib diisi dengan benar.');
+  }
+
+  const newTahun = Number(cleanTanggal.slice(0, 4));
+  const newBulan = Number(cleanTanggal.slice(5, 7));
+  if (!(newTahun >= 2000 && newTahun <= 2100 && newBulan >= 1 && newBulan <= 12)) {
+    throw new Error(`Tanggal transaksi "${cleanTanggal}" tidak valid.`);
+  }
   await assertPeriodNotLocked(existing.bagianId, newTahun, newBulan);
 
   const qty = Number(input.qty);
-  const hargaSatuan = Math.max(0, Number(input.hargaSatuan) || 0);
-  if (!(qty > 0)) {
-    throw new Error('Kuantitas harus lebih besar dari 0.');
+  const rawHarga = Number(input.hargaSatuan);
+  if (!Number.isFinite(qty) || !(qty > 0)) {
+    throw new Error('Kuantitas harus berupa angka valid lebih besar dari 0.');
   }
+  if (!Number.isFinite(rawHarga) || rawHarga < 0) {
+    throw new Error('Harga satuan tidak valid.');
+  }
+  const cleanQty = roundQty(qty);
+  const hargaSatuan = Math.max(0, rawHarga);
 
   const updatedDoc: FsTrx = {
     ...existing,
     tahun: newTahun,
     bulan: newBulan,
-    tanggal: input.tanggal,
-    noBukti: input.noBukti.trim().slice(0, 100),
+    tanggal: cleanTanggal,
+    noBukti: cleanBukti,
     barangId: input.barangId,
-    qty,
+    qty: cleanQty,
     hargaSatuan,
-    totalNilai: Math.round(qty * hargaSatuan),
+    totalNilai: Math.round(cleanQty * hargaSatuan),
     keterangan: (input.keterangan || '').trim().slice(0, 300),
   };
   if (input.plafonId) {
@@ -572,14 +635,27 @@ export async function createMutasi(
   if (!input.tujuanBagianId || input.tujuanBagianId === effectiveAsal) {
     throw new Error('Gudang Bagian tujuan tidak boleh sama dengan Bagian asal.');
   }
+  const cleanTanggal = input.tanggal.trim().slice(0, 10);
+  const cleanBukti = input.noBukti.trim().slice(0, 100);
   const qty = Number(input.qty);
-  const hargaSatuan = Math.max(0, Number(input.hargaSatuan) || 0);
-  if (!input.tanggal || !input.noBukti.trim() || !input.barangId || !(qty > 0)) {
+  const rawHarga = Number(input.hargaSatuan);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(cleanTanggal) ||
+    !cleanBukti ||
+    !input.barangId ||
+    !Number.isFinite(qty) ||
+    !(qty > 0) ||
+    !Number.isFinite(rawHarga) ||
+    rawHarga < 0
+  ) {
     throw new Error('Lengkapi seluruh field mutasi dengan benar.');
   }
 
-  const tahun = Number(input.tanggal.slice(0, 4));
-  const bulan = Number(input.tanggal.slice(5, 7));
+  const tahun = Number(cleanTanggal.slice(0, 4));
+  const bulan = Number(cleanTanggal.slice(5, 7));
+  if (!(tahun >= 2000 && tahun <= 2100 && bulan >= 1 && bulan <= 12)) {
+    throw new Error(`Tanggal mutasi "${cleanTanggal}" tidak valid.`);
+  }
   await Promise.all([
     assertPeriodNotLocked(effectiveAsal, tahun, bulan),
     assertPeriodNotLocked(input.tujuanBagianId, tahun, bulan),
@@ -589,8 +665,9 @@ export async function createMutasi(
   const outId = `${refMutasiId}_out`;
   const inId = `${refMutasiId}_in`;
   const nowIso = new Date().toISOString();
-  const totalNilai = Math.round(qty * hargaSatuan);
-  const cleanBukti = input.noBukti.trim().slice(0, 100);
+  const cleanQty = roundQty(qty);
+  const hargaSatuan = Math.max(0, rawHarga);
+  const totalNilai = Math.round(cleanQty * hargaSatuan);
   const cleanKet = (input.keterangan || '').trim().slice(0, 300);
 
   const outData: FsTrx = {
@@ -598,10 +675,10 @@ export async function createMutasi(
     bulan,
     bagianId: effectiveAsal,
     jenis: 'MUTASI_KELUAR',
-    tanggal: input.tanggal,
+    tanggal: cleanTanggal,
     noBukti: cleanBukti,
     barangId: input.barangId,
-    qty,
+    qty: cleanQty,
     hargaSatuan,
     totalNilai,
     keterangan: cleanKet || 'Mutasi keluar ke bagian tujuan',
@@ -617,10 +694,10 @@ export async function createMutasi(
     bulan,
     bagianId: input.tujuanBagianId,
     jenis: 'MUTASI_MASUK',
-    tanggal: input.tanggal,
+    tanggal: cleanTanggal,
     noBukti: cleanBukti,
     barangId: input.barangId,
-    qty,
+    qty: cleanQty,
     hargaSatuan,
     totalNilai,
     keterangan: cleanKet || 'Mutasi masuk dari bagian asal',
@@ -657,7 +734,7 @@ export async function createMutasi(
     const destOwner = destSaldoSnap.exists()
       ? (destSaldoSnap.data() as { ownerId?: string })?.ownerId
       : undefined;
-    const nextDestQty = Math.round((curDestQty + qty) * 100) / 100;
+    const nextDestQty = roundQty(curDestQty + cleanQty);
 
     await stageRecalculateIntoBatch(batch, effectiveAsal, input.barangId, ownerUid, {
       upserts: [{ id: outId, data: outData }],
@@ -672,7 +749,7 @@ export async function createMutasi(
       noBukti: inData.noBukti,
       jenis: inData.jenis,
       keterangan: inData.keterangan || '',
-      qtyMasuk: qty,
+      qtyMasuk: cleanQty,
       qtyKeluar: 0,
       sisaSaldo: nextDestQty,
       hargaSatuan,
@@ -742,14 +819,29 @@ export async function updateMutasi(
     throw new Error('Gudang Bagian tujuan tidak boleh sama dengan Bagian asal.');
   }
 
+  const cleanTanggal = input.tanggal.trim().slice(0, 10);
+  const cleanBukti = input.noBukti.trim().slice(0, 100);
   const qty = Number(input.qty);
-  const hargaSatuan = Math.max(0, Number(input.hargaSatuan) || 0);
-  if (!input.tanggal || !input.noBukti.trim() || !input.barangId || !(qty > 0)) {
+  const rawHarga = Number(input.hargaSatuan);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(cleanTanggal) ||
+    !cleanBukti ||
+    !input.barangId ||
+    !Number.isFinite(qty) ||
+    !(qty > 0) ||
+    !Number.isFinite(rawHarga) ||
+    rawHarga < 0
+  ) {
     throw new Error('Lengkapi seluruh field mutasi dengan benar.');
   }
 
-  const newTahun = Number(input.tanggal.slice(0, 4));
-  const newBulan = Number(input.tanggal.slice(5, 7));
+  const newTahun = Number(cleanTanggal.slice(0, 4));
+  const newBulan = Number(cleanTanggal.slice(5, 7));
+  if (!(newTahun >= 2000 && newTahun <= 2100 && newBulan >= 1 && newBulan <= 12)) {
+    throw new Error(`Tanggal mutasi "${cleanTanggal}" tidak valid.`);
+  }
+  const cleanQty = roundQty(qty);
+  const hargaSatuan = Math.max(0, rawHarga);
 
   await Promise.all([
     assertPeriodNotLocked(existingOut.bagianId, existingOut.tahun, existingOut.bulan),
@@ -763,28 +855,27 @@ export async function updateMutasi(
     await createMutasi(currentUser, ownerUid, {
       asalBagianId: effectiveAsal,
       tujuanBagianId: input.tujuanBagianId,
-      tanggal: input.tanggal,
-      noBukti: input.noBukti,
+      tanggal: cleanTanggal,
+      noBukti: cleanBukti,
       barangId: input.barangId,
-      qty,
+      qty: cleanQty,
       hargaSatuan,
       keterangan: input.keterangan,
     });
     return;
   }
 
-  const totalNilai = Math.round(qty * hargaSatuan);
-  const cleanBukti = input.noBukti.trim().slice(0, 100);
+  const totalNilai = Math.round(cleanQty * hargaSatuan);
   const cleanKet = (input.keterangan || '').trim().slice(0, 300);
 
   const updatedOut: FsTrx = {
     ...existingOut,
     tahun: newTahun,
     bulan: newBulan,
-    tanggal: input.tanggal,
+    tanggal: cleanTanggal,
     noBukti: cleanBukti,
     barangId: input.barangId,
-    qty,
+    qty: cleanQty,
     hargaSatuan,
     totalNilai,
     keterangan: cleanKet || 'Mutasi keluar ke bagian tujuan',
@@ -795,10 +886,10 @@ export async function updateMutasi(
     ...existingIn,
     tahun: newTahun,
     bulan: newBulan,
-    tanggal: input.tanggal,
+    tanggal: cleanTanggal,
     noBukti: cleanBukti,
     barangId: input.barangId,
-    qty,
+    qty: cleanQty,
     hargaSatuan,
     totalNilai,
     keterangan: cleanKet || 'Mutasi masuk dari bagian asal',
@@ -852,16 +943,16 @@ export async function updateMutasi(
       const destOwner = destSaldoSnap.exists()
         ? (destSaldoSnap.data() as { ownerId?: string })?.ownerId
         : undefined;
-      const delta = qty - existingIn.qty;
-      const nextDestQty = Math.round((curDestQty + delta) * 100) / 100;
+      const delta = roundQty(cleanQty - existingIn.qty);
+      const nextDestQty = roundQty(curDestQty + delta);
       if (nextDestQty < -0.0001) {
         throw new Error(
-          `Stok di Gudang Tujuan sudah terpakai (sisa ${curDestQty}), sehingga jumlah mutasi tidak dapat dikurangi menjadi ${qty}.`
+          `Stok di Gudang Tujuan sudah terpakai (sisa ${curDestQty}), sehingga jumlah mutasi tidak dapat dikurangi menjadi ${cleanQty}.`
         );
       }
       const prevKrtSisa = krtInSnap.exists() ? Number(krtInSnap.data()?.sisaSaldo || 0) : nextDestQty;
       const nextKrtSisa = krtInSnap.exists()
-        ? Math.max(0, Math.round((prevKrtSisa + delta) * 100) / 100)
+        ? Math.max(0, roundQty(prevKrtSisa + delta))
         : Math.max(0, nextDestQty);
       const krtOwner = krtInSnap.exists()
         ? (krtInSnap.data() as { ownerId?: string })?.ownerId
@@ -876,7 +967,7 @@ export async function updateMutasi(
         noBukti: updatedIn.noBukti,
         jenis: updatedIn.jenis,
         keterangan: updatedIn.keterangan || '',
-        qtyMasuk: qty,
+        qtyMasuk: cleanQty,
         qtyKeluar: 0,
         sisaSaldo: nextKrtSisa,
         hargaSatuan,
@@ -913,7 +1004,7 @@ export async function updateMutasi(
       const oldDestOwner = oldDestSaldoSnap.exists()
         ? (oldDestSaldoSnap.data() as { ownerId?: string })?.ownerId
         : undefined;
-      const reducedOldQty = Math.round((oldDestQty - existingIn.qty) * 100) / 100;
+      const reducedOldQty = roundQty(oldDestQty - existingIn.qty);
       if (reducedOldQty < -0.0001) {
         throw new Error(
           `Stok barang lama di Gudang Tujuan sudah terpakai (sisa ${oldDestQty}), sehingga barang mutasi tidak dapat diganti.`
@@ -925,7 +1016,7 @@ export async function updateMutasi(
       const newDestOwner = newDestSaldoSnap.exists()
         ? (newDestSaldoSnap.data() as { ownerId?: string })?.ownerId
         : undefined;
-      const addedNewQty = Math.round((newDestQty + qty) * 100) / 100;
+      const addedNewQty = roundQty(newDestQty + cleanQty);
       const krtOwner = krtInSnap.exists()
         ? (krtInSnap.data() as { ownerId?: string })?.ownerId
         : undefined;
@@ -955,7 +1046,7 @@ export async function updateMutasi(
         noBukti: updatedIn.noBukti,
         jenis: updatedIn.jenis,
         keterangan: updatedIn.keterangan || '',
-        qtyMasuk: qty,
+        qtyMasuk: cleanQty,
         qtyKeluar: 0,
         sisaSaldo: addedNewQty,
         hargaSatuan,
