@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import type { Bagian, Barang, InstansiConfig, Kategori, UserProfile } from '@/lib/types';
-import { newFsId, tsToIso } from './utils';
+import { isCentralRole, newFsId, tsToIso } from './utils';
 
 export async function getInstansi(): Promise<InstansiConfig | null> {
   try {
@@ -121,8 +121,8 @@ export async function saveBagian(
   ownerUid: string,
   input: { id?: string; kode: string; nama: string; kepalaBagian: string }
 ): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat menambah atau mengubah data Bagian.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat menambah atau mengubah data Bagian.');
   }
   const kode = input.kode.trim().toUpperCase().slice(0, 20);
   const nama = input.nama.trim().slice(0, 120);
@@ -165,8 +165,8 @@ export async function saveBagian(
 }
 
 export async function deleteBagian(currentUser: UserProfile, id: string): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat menghapus Bagian.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat menghapus Bagian.');
   }
   try {
     const [trxSnap, plafonSnap] = await Promise.all([
@@ -208,8 +208,8 @@ export async function saveKategori(
   ownerUid: string,
   input: { id?: string; kodeRekening: string; nama: string }
 ): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat mengelola Master Kategori.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat mengelola Master Kategori.');
   }
   const kodeRekening = input.kodeRekening.trim().slice(0, 50);
   const nama = input.nama.trim().slice(0, 150);
@@ -244,8 +244,8 @@ export async function saveKategori(
 }
 
 export async function deleteKategori(currentUser: UserProfile, id: string): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat menghapus Kategori.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat menghapus Kategori.');
   }
   try {
     const usedSnap = await getDocs(
@@ -318,8 +318,8 @@ export async function saveBarang(
     kategoriId: string;
   }
 ): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat mengelola Master Barang.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat mengelola Master Barang.');
   }
   const kodeBarang = input.kodeBarang.trim().toUpperCase().slice(0, 40);
   const nama = input.nama.trim().slice(0, 150);
@@ -384,8 +384,8 @@ export async function importBarangBatch(
     kategoriId?: string;
   }>
 ): Promise<number> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat mengimpor katalog barang.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat mengimpor katalog barang.');
   }
   if (items.length === 0) return 0;
 
@@ -448,8 +448,8 @@ export async function importBarangBatch(
 }
 
 export async function deleteBarang(currentUser: UserProfile, id: string): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat menghapus Barang.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat menghapus Barang.');
   }
   try {
     const usedSnap = await getDocs(
@@ -472,8 +472,8 @@ export async function setBarangStokMinimum(
   barangId: string,
   stokMinimum: number
 ): Promise<void> {
-  if (currentUser.role !== 'Superadmin') {
-    throw new Error('Hanya Superadmin yang dapat mengubah pengaturan alert stok minimum.');
+  if (!isCentralRole(currentUser.role)) {
+    throw new Error('Hanya Superadmin atau Pengurus Barang yang dapat mengubah pengaturan alert stok minimum.');
   }
   const cleanMin = Number.isFinite(stokMinimum) ? Math.max(0, Math.round(stokMinimum)) : 0;
   try {

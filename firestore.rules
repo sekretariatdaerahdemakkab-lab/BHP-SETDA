@@ -349,52 +349,58 @@ service cloud.firestore {
     match /bagian/{bagianId} {
       allow get: if isValidId(bagianId) && (isActiveUser() || isAdmin());
       allow list: if isActiveUser() || isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
-      allow create: if isValidId(bagianId)
-        && isAdmin()
+      allow create: if isSignedIn()
+        && isValidId(bagianId)
         && isValidBagian(incoming())
         && incoming().ownerId == request.auth.uid
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(bagianId)
-        && isAdmin()
+        && incoming().updatedAt == request.time
+        && isCentralStaff();
+      allow update: if isSignedIn()
+        && isValidId(bagianId)
         && isValidBagian(incoming())
         && incoming().ownerId == existing().ownerId
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['kode', 'nama', 'kepalaBagian', 'updatedAt']);
-      allow delete: if isValidId(bagianId) && isAdmin();
+        && incoming().diff(existing()).affectedKeys().hasOnly(['kode', 'nama', 'kepalaBagian', 'updatedAt'])
+        && isCentralStaff();
+      allow delete: if isSignedIn() && isValidId(bagianId) && isCentralStaff();
     }
 
     match /kategori/{kategoriId} {
       allow get: if isValidId(kategoriId) && (isActiveUser() || isAdmin());
       allow list: if isActiveUser() || isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
-      allow create: if isValidId(kategoriId)
-        && isAdmin()
+      allow create: if isSignedIn()
+        && isValidId(kategoriId)
         && isValidKategori(incoming())
         && incoming().ownerId == request.auth.uid
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(kategoriId)
-        && isAdmin()
+        && incoming().updatedAt == request.time
+        && isCentralStaff();
+      allow update: if isSignedIn()
+        && isValidId(kategoriId)
         && isValidKategori(incoming())
         && incoming().ownerId == existing().ownerId
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['kodeRekening', 'nama', 'updatedAt']);
-      allow delete: if isValidId(kategoriId) && isAdmin();
+        && incoming().diff(existing()).affectedKeys().hasOnly(['kodeRekening', 'nama', 'updatedAt'])
+        && isCentralStaff();
+      allow delete: if isSignedIn() && isValidId(kategoriId) && isCentralStaff();
     }
 
     match /barang/{barangId} {
       allow get: if isValidId(barangId) && (isActiveUser() || isAdmin());
       allow list: if isActiveUser() || isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
-      allow create: if isValidId(barangId)
-        && isAdmin()
+      allow create: if isSignedIn()
+        && isValidId(barangId)
         && isValidBarang(incoming())
         && incoming().ownerId == request.auth.uid
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(barangId)
-        && isAdmin()
+        && incoming().updatedAt == request.time
+        && isCentralStaff();
+      allow update: if isSignedIn()
+        && isValidId(barangId)
         && isValidBarang(incoming())
         && incoming().ownerId == existing().ownerId
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['kodeBarang', 'nama', 'satuan', 'hargaStandar', 'stokMinimum', 'kategoriId', 'updatedAt']);
-      allow delete: if isValidId(barangId) && isAdmin();
+        && incoming().diff(existing()).affectedKeys().hasOnly(['kodeBarang', 'nama', 'satuan', 'hargaStandar', 'stokMinimum', 'kategoriId', 'updatedAt'])
+        && isCentralStaff();
+      allow delete: if isSignedIn() && isValidId(barangId) && isCentralStaff();
     }
 
     match /plafon_anggaran/{plafonId} {

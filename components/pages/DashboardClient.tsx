@@ -93,7 +93,7 @@ export function DashboardClient() {
   };
 
   const handleDisableAlert = async (barangId: string, namaBarang: string) => {
-    if (!user || user.role !== 'Superadmin') return;
+    if (!user || (user.role !== 'Superadmin' && user.role !== 'Pengurus Barang')) return;
     setDisablingId(barangId);
     try {
       await setBarangStokMinimum(user, barangId, 0);
@@ -535,7 +535,7 @@ export function DashboardClient() {
                                   Min. {alert.stokMinimum}
                                 </p>
                               </div>
-                              {user?.role === 'Superadmin' && (
+                              {(user?.role === 'Superadmin' || user?.role === 'Pengurus Barang') && (
                                 <button
                                   type="button"
                                   disabled={disablingId === alert.barangId}

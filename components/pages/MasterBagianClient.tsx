@@ -22,7 +22,7 @@ export function MasterBagianClient() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Bagian | null>(null);
 
-  const canEdit = user?.role === 'Superadmin';
+  const canEdit = user?.role === 'Superadmin' || user?.role === 'Pengurus Barang';
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -255,7 +255,7 @@ export function MasterBagianClient() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 text-sm font-semibold text-white bg-teal-700 rounded-lg hover:bg-teal-800 disabled:opacity-50"
+                className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50"
               >
                 {saving ? 'Menyimpan...' : 'Simpan'}
               </button>
